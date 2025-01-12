@@ -31,19 +31,15 @@ Join the [mailing list](https://antipythonai.substack.com/)
 
 <div align="center">
 <h1>✨ Getting started ✨</h1>
-<h3>Java demo showing Java to Python imports available</h3>
-<p> <b>Node JS and GCC<b> needed to compile Javascript and C</p>
 </div>
   
-
 1. Clone the repo to your personal computer
    ```
    git clone https://github.com/Fileforma/AntiPython-AI-Compiler-Colab.git
    ```
-2. Open the folder `AntiPython-AI-Compiler-Colab`
-   ```
-   cd AntiPython-AI-Compiler-Colab
-   ```
+2. Install [libgmp](https://gmplib.org/manual/Installing-GMP) on your computer. [Ubuntu instructions here](https://installati.one/install-libgmp-dev-ubuntu-22-04/)
+
+3. Follow the official documentation [here](https://open.substack.com/pub/leetarxiv/p/emulating-a-gpu-on-a-cpu-using-finite?r=2at73k&utm_campaign=post&utm_medium=web&showWelcomeOnShare=true)
 
 
 [<img src="https://img.shields.io/twitter/follow/murage_kibicho" alt="Follow for updates"/>](https://twitter.com/murage_kibicho)
