@@ -7,7 +7,7 @@ int main()
 	//Unsigned 8-bit arrays we want to add
 	uint8_t data0[] = {5, 3, 6};
 	uint8_t data1[] = {2, 4, 1};
-	uint64_t fieldOrder[] = {8, 9, 11};
+	uint64_t fieldOrder[] = {15,17,19};
 	int dataLength = sizeof(data0) / sizeof(uint8_t);
 	
 	//Allocate memory for one FF-asm fields of type Int_8_U_Field
@@ -22,8 +22,8 @@ int main()
 	//Place data1 in the FF-asm field at index 1
 	ff_asmAppendData(field, dataLength, data1, Int_8_U_Field);
 	
-	//Add data at index 0 and data at index 1 : store at index 2.
-	ff_asmAdd(field, 0, 1, 2);
+	//Multiply data at index 0 and data at index 1 : store at index 2.
+	ff_asmMultiply(field, 0, 1, 2);
 	
 	//Prepare the data for printing.
 	ff_asmDataDebug(field);

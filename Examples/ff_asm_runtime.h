@@ -351,4 +351,71 @@ void ff_asmAdd(ff_asmField field, size_t leftIndex, size_t rightIndex, size_t re
 		mpz_clear(sum);
 	}
 }
+
+void ff_asmMultiply(ff_asmField field, size_t leftIndex, size_t rightIndex, size_t resultIndex)
+{
+	if(resultIndex > field->nodeCount){PRINT_ERROR("FFASM ADD Error: result index out of bounds");}
+	if(leftIndex > field->nodeCount-1){PRINT_ERROR("FFASM ADD Error: left index out of bounds");}
+	if(rightIndex > field->nodeCount-1){PRINT_ERROR("FFASM ADD Error: right index out of bounds");}
+	if(rightIndex < leftIndex){PRINT_ERROR("FFASM ADD Error: right index is less than left index");}
+	if(field->dataHolder == NULL){PRINT_ERROR("FFASM ADD Error: field->dataHolder is empty");}
+	
+	if(mpz_cmp_ui(field->maxDataSize, 0) == 0){PRINT_ERROR("FFASM ADD Error: field->maxDataSize is 0, maybe you should set a field order");}
+	if(resultIndex == field->nodeCount)
+	{
+		//Create new node and set values
+		ff_asmNode newNode = ff_asmCreateNode(field->fieldLength, field->dataType);
+		mpz_set_ui(newNode->integer, 1);
+		ff_asmNode current = field->dataHolder;
+		size_t currentIndex = 0;
+		while(current != NULL)
+		{
+			if(currentIndex == leftIndex)
+			{
+				mpz_mul(newNode->integer, newNode->integer, current->integer);
+			}
+			else if(currentIndex == rightIndex)
+			{
+				mpz_mul(newNode->integer, newNode->integer, current->integer);
+				break;
+			}
+			current = current->next;
+		}
+		mpz_mod(newNode->integer, newNode->integer, field->maxDataSize);
+		
+		currentIndex = 0;
+		current = field->dataHolder;
+		while(current->next != NULL) 
+		{
+			current = current->next;
+			currentIndex += 1;
+		}
+		current->next = newNode;
+		field->nodeCount += 1;
+	}
+	else
+	{
+		//Replace integer at specific index
+		ff_asmNode resultNode = NULL;
+		ff_asmNode leftNode = NULL;
+		ff_asmNode rightNode = NULL;
+
+		size_t currentIndex = 0;
+		ff_asmNode current = field->dataHolder;
+		while(current != NULL)
+		{
+			if(currentIndex == leftIndex){leftNode = current;}
+			if(currentIndex == rightIndex){rightNode = current;}
+			if(currentIndex == resultIndex){resultNode = current;}
+			if(leftNode != NULL && rightNode != NULL && resultNode != NULL){break;}
+			current = current->next;
+			currentIndex++;
+		}
+		mpz_t product;mpz_init(product);
+		mpz_mul(product, leftNode->integer, rightNode->integer);
+		mpz_mod(product, product, field->maxDataSize);
+		mpz_set(resultNode->integer, product);
+		mpz_clear(product);
+	}
+}
 #endif // FF_ASM_RUNTIME_H
