@@ -17,35 +17,15 @@ Receive [project updates](https://leetarxiv.substack.com/)
 
 
 ## What's this?
-AntiPython Colab is a source to source compiler that let's you **build AI in Java, Rust, JavaScript, Flutter, C#, Go, Ocaml(and etc...)** utilizing free Google Colab GPUs!
+**Finite Field Assembly (FF-ASM)** is a programming language **designed to emulate GPUs on regular CPUs using** Number Theory and Finite Field Theory. 
 
-It's blazingly fast and very robust as it uses websockets and the Treesitter C library under the hood.
+It's blazingly fast and compiles to C.
 
-✔ Web GUI for ease of access
+✔ **Finite Field is the primary data structure** : FF-asm is a CUDA alternative designed for computations over finite fields.
 
-✔ No language lock-in! Free and opensource language servers available!
+✔ **Recursive computing support** : not cache-aware vectorization, not parallelization, but performing a calculation inside a calculation inside another calculation.
 
-✔ Super secure language servers running on your personal device.
-
-
-### Motivation
-AI is super interesting but Python is a bore. We built a compiler that translates programming languages to Python!
-
-AntiPython Colab is built for:
-
--   Programmers interested in free GPU access and AI - just without the Python.
--   Developers keen on accessing Python's *vast AI tooling* without touching Python. 
--   Companies that seek to add AI to their products without needing to hire Python devs.
--   Hobbyists who realize they spend more time setting up Python environments than actual coding.
-
-## Development Status!
-This is a work in progress. Send direct feeback here - murage@fileforma.com
-
-25th Jan - Built Chrome extension interface.
-
-29th Jan - Java imports working. 
-
-[Sponsor your favorite language here🙏](https://opencollective.com/fileforma)
+✔ **Extension of C89** - runs everywhere gcc is available.
 
 Join the [mailing list](https://antipythonai.substack.com/)
 
