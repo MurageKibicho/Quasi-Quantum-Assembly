@@ -536,3 +536,91 @@ int first5239[5259] =
  60209
 };
 
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct {
+    int current_product;
+    int current_index;
+} StackFrame;
+
+void print_combination(int *primes, int *selected, int num_primes) {
+    printf("Combination of primes: [");
+    int printed = 0;
+    for (int i = 0; i < num_primes; ++i) {
+        if (selected[i]) {
+            if (printed > 0) {
+                printf(", ");
+            }
+            printf("%d", primes[i]);
+            printed = 1;
+        }
+    }
+    printf("]\n");
+}
+
+int find_closest_product_iterative(int *primes, int num_primes, int target_n) {
+    int best_combination = 1;
+    int best_difference = target_n;
+
+    // Initialize stack for iterative approach
+    StackFrame *stack = (StackFrame *)malloc(num_primes * sizeof(StackFrame));
+    int stack_size = 0;
+
+    // Initial frame (corresponding to the initial recursive call)
+    stack[stack_size++] = (StackFrame){1, 0};
+
+    // Array to keep track of selected primes
+    int *selected = (int *)malloc(num_primes * sizeof(int));
+
+    while (stack_size > 0) {
+        // Pop the stack
+        StackFrame current_frame = stack[--stack_size];
+
+        int current_product = current_frame.current_product;
+        int current_index = current_frame.current_index;
+
+        // Base case: if we've reached the end of the primes list
+        if (current_index == num_primes) {
+            int current_difference = abs(target_n - current_product);
+            if (current_difference < best_difference) {
+                best_combination = current_product;
+                best_difference = current_difference;
+
+                // Update the selected array for the best combination
+                for (int i = 0; i < num_primes; ++i) {
+                    selected[i] = (current_product % primes[i] == 0);
+                }
+            }
+        } else {
+            // Recursive case: try including the current prime and excluding it
+            stack[stack_size++] = (StackFrame){
+                current_product * primes[current_index], current_index + 1
+            };
+            stack[stack_size++] = (StackFrame){
+                current_product, current_index + 1
+            };
+        }
+    }
+
+    // Print the best combination
+    print_combination(primes, selected, num_primes);
+
+    // Free allocated memory
+    free(selected);
+    free(stack);
+
+    return best_combination;
+}
+
+/*int main() {
+    int prime_list[] = {2, 3, 5, 7, 11, 13, 17, 19};
+    int num_primes = sizeof(prime_list) / sizeof(prime_list[0]);
+    int target_n = 2345;
+
+    int result = find_closest_product_iterative(prime_list, num_primes, target_n);
+    printf("Closest combination of primes: %d\n", result);
+
+    return 0;
+}*/
+

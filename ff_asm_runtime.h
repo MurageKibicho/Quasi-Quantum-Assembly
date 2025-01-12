@@ -46,7 +46,9 @@ typedef struct ff_asm_node_struct *ff_asmNode;
 
 struct ff_asm_node_struct 
 {
+	uint64_t dataLength;
 	uint64_t *data;
+	uint8_t dataType;
 	mpz_t integer;
 	mpz_t integerBias;
 	ff_asmNode next;
@@ -56,7 +58,50 @@ struct ff_asm_field_struct
 {
 	int nodeCount;
 	int bias;
-	int type;
-	uint64_t *primes;
+	uint8_t dataType;
+	size_t fieldLength;
+	uint64_t *fieldOrder;
+	ff_asmNode dataHolder;
 };
+
+ff_asmNode ff_asmCreateNode(uint64_t dataLength, uint8_t type)
+{
+	ff_asmNode newNode = malloc(sizeof(struct ff_asm_node_struct));
+	if(newNode == NULL){PRINT_ERROR("FFASM CreateNode Error: ff_asmNode is NULL");}
+	if(type >= ff_asmDataType_LENGTH)  {PRINT_ERROR("FFASM CreateNode Error: unsupported data type.");}
+	newNode->dataLength = dataLength;
+	newNode->data       = calloc(dataLength, sizeof(uint64_t));
+	newNode->dataType   = type;
+	mpz_init(newNode->integer);
+	mpz_init(newNode->integerBias);
+	mpz_set_ui(array->integer, 0);
+	mpz_set_ui(array->integerBias, 0);
+	newNode->next = NULL;
+	return newNode;
+}
+
+ff_asmField ff_asmMalloc(size_t fieldLength, uint8_t dataType)
+{
+	if(type >= ff_asmDataType_LENGTH){PRINT_ERROR("FFASM Malloc Error: unsupported data type.");}
+	
+	ff_asmField field = malloc(sizeof(struct ff_asm_node_struct));
+	if(field == NULL){PRINT_ERROR("FFASM Malloc Error: failed to allocate memory for the field structure.");}
+
+	field->nodeCount    = 0;
+	field->bias         = 0;
+	field->dataType     = dataType;
+	field->fieldLength  = fieldLength;
+	field->fieldOrder   = calloc(fieldLength, sizeof(uint64_t));
+	field->dataHolder   = NULL;
+
+	if (field->fieldLength > 5238) {PRINT_ERROR("FFASM Malloc Error: Insufficient prime numbers.");}
+	for(size_t i = 0; i < field->fieldLength; i++)
+	{
+		field->fieldOrder[i] = (uint64_t) first5239[i];
+	}
+	if (field->fieldOrder == NULL) {PRINT_ERROR("FFASM Malloc Error: failed to allocate memory for the field->fieldOrder structure.");}
+	return field;
+}
+
+
 #endif // FF_ASM_RUNTIME_H
