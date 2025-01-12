@@ -62,6 +62,7 @@ struct ff_asm_field_struct
 	size_t fieldLength;
 	uint64_t *fieldOrder;
 	ff_asmNode dataHolder;
+	mpz_t maxDataSize;
 };
 
 ff_asmNode ff_asmCreateNode(uint64_t dataLength, uint8_t type)
@@ -94,11 +95,13 @@ ff_asmField ff_asmMalloc(size_t fieldLength, uint8_t dataType)
 	field->fieldLength  = fieldLength;
 	field->fieldOrder   = calloc(fieldLength, sizeof(uint64_t));
 	field->dataHolder   = NULL;
-
+	mpz_init(field->maxDataSize);
+	mpz_set_ui(field->maxDataSize, 1);
 	if (field->fieldLength > 5238) {PRINT_ERROR("FFASM Malloc Error: Insufficient prime numbers.");}
 	for(size_t i = 0; i < field->fieldLength; i++)
 	{
 		field->fieldOrder[i] = (uint64_t) first5239[i];
+		mpz_mul_ui(field->maxDataSize, field->maxDataSize, field->fieldOrder[i]);
 	}
 	if(field->fieldOrder == NULL) {PRINT_ERROR("FFASM Malloc Error: failed to allocate memory for the field->fieldOrder structure.");}
 	return field;
@@ -106,9 +109,11 @@ ff_asmField ff_asmMalloc(size_t fieldLength, uint8_t dataType)
 
 void ff_asmSetFieldOrder(ff_asmField field, size_t fieldLength, uint64_t *fieldOrder)
 {
+	mpz_set_ui(field->maxDataSize, 1);
 	for(size_t i = 0; i < field->fieldLength && i < fieldLength; i++)
 	{
 		field->fieldOrder[i] = (uint64_t) fieldOrder[i];
+		mpz_mul_ui(field->maxDataSize, field->maxDataSize, field->fieldOrder[i]);
 	}
 }
 
@@ -260,8 +265,90 @@ void ff_asmFreeField(ff_asmField field)
 		free(field->fieldOrder);
 		field->fieldOrder = NULL;
 	}
-
+	mpz_clear(field->maxDataSize);
 	free(field);
 }
 
+void ff_asmDataDebug(ff_asmField field)
+{
+	if(field == NULL){return;}
+
+	ff_asmNode current = field->dataHolder;
+	mpz_t temp; mpz_init(temp);
+	while(current != NULL)
+	{
+		for(size_t i = 0; i < current->dataLength; i++)
+		{
+			current->data[i] = mpz_mod_ui(temp, current->integer, field->fieldOrder[i]);
+		}
+		current = current->next;
+	}
+	mpz_clear(temp);
+}
+
+void ff_asmAdd(ff_asmField field, size_t leftIndex, size_t rightIndex, size_t resultIndex)
+{
+	if(resultIndex > field->nodeCount){PRINT_ERROR("FFASM ADD Error: result index out of bounds");}
+	if(leftIndex > field->nodeCount-1){PRINT_ERROR("FFASM ADD Error: left index out of bounds");}
+	if(rightIndex > field->nodeCount-1){PRINT_ERROR("FFASM ADD Error: right index out of bounds");}
+	if(rightIndex < leftIndex){PRINT_ERROR("FFASM ADD Error: right index is less than left index");}
+	if(field->dataHolder == NULL){PRINT_ERROR("FFASM ADD Error: field->dataHolder is empty");}
+	
+	if(mpz_cmp_ui(field->maxDataSize, 0) == 0){PRINT_ERROR("FFASM ADD Error: field->maxDataSize is 0, maybe you should set a field order");}
+	if(resultIndex == field->nodeCount)
+	{
+		//Create new node and set values
+		ff_asmNode newNode = ff_asmCreateNode(field->fieldLength, field->dataType);
+		ff_asmNode current = field->dataHolder;
+		size_t currentIndex = 0;
+		while(current != NULL)
+		{
+			if(currentIndex == leftIndex)
+			{
+				mpz_add(newNode->integer, newNode->integer, current->integer);
+			}
+			else if(currentIndex == rightIndex)
+			{
+				mpz_add(newNode->integer, newNode->integer, current->integer);
+				break;
+			}
+			current = current->next;
+		}
+		mpz_mod(newNode->integer, newNode->integer, field->maxDataSize);
+		
+		currentIndex = 0;
+		current = field->dataHolder;
+		while(current->next != NULL) 
+		{
+			current = current->next;
+			currentIndex += 1;
+		}
+		current->next = newNode;
+		field->nodeCount += 1;
+	}
+	else
+	{
+		//Replace integer at specific index
+		ff_asmNode resultNode = NULL;
+		ff_asmNode leftNode = NULL;
+		ff_asmNode rightNode = NULL;
+
+		size_t currentIndex = 0;
+		ff_asmNode current = field->dataHolder;
+		while(current != NULL)
+		{
+			if(currentIndex == leftIndex){leftNode = current;}
+			if(currentIndex == rightIndex){rightNode = current;}
+			if(currentIndex == resultIndex){resultNode = current;}
+			if(leftNode != NULL && rightNode != NULL && resultNode != NULL){break;}
+			current = current->next;
+			currentIndex++;
+		}
+		mpz_t sum;mpz_init(sum);
+		mpz_add(sum, leftNode->integer, rightNode->integer);
+		mpz_mod(sum, sum, field->maxDataSize);
+		mpz_set(resultNode->integer, sum);
+		mpz_clear(sum);
+	}
+}
 #endif // FF_ASM_RUNTIME_H

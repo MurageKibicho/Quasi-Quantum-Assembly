@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "ff_asm_runtime.h"
 
 //Run : gcc 01_HelloWorld.c -lgmp -lm -o m.o && ./m.o
