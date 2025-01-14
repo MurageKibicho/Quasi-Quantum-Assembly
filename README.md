@@ -33,8 +33,6 @@ Our work is centered around these meticulously-researched topics in Number theor
 
 Finite Field Assembly merely applies these obscure topics in mathematics to a mainstream problem - making AI compute available to everyone.
 
-We have paying users supporting our Substack.  
-It's blazingly fast and compiles to C.
 
 ✔ **Finite Field is the primary data structure** : FF-asm is a CUDA alternative designed for computations over finite fields.
 
