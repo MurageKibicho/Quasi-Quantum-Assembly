@@ -17,8 +17,23 @@ Receive [project updates](https://leetarxiv.substack.com/)
 
 
 ## What's this?
-**Finite Field Assembly (FF-ASM)** is a programming language **designed to emulate GPUs on regular CPUs using** Number Theory and Finite Field Theory. 
+**Finite Field Assembly (FF-ASM)** is a programming language **designed to emulate GPUs on regular CPUs using** Pure Mathematics. 
 
+The project's goal is to democratize AI compute such that the systems of the future are neither controlled by rich countries nor big tech. 
+
+We build on Finite Field theory, a branch of mathematics I studied at Yale University. 
+The main idea is to use the _properties of prime numbers to multiply several array elements at the same time_. 
+It's **like GPU hardware parallelization but we replace the GPU kernels with prime numbers**.
+
+Our work is centered around these meticulously-researched topics in Number theory and Finite Field theory : 
+- The divisibilty properties of primes.
+- The theory of linear congruences.
+- Redundant residue number systems.
+- The Chinese Remainder Theorem.
+
+Finite Field Assembly merely applies these obscure topics in mathematics to a mainstream problem - making AI compute available to everyone.
+
+We have paying users supporting our Substack.  
 It's blazingly fast and compiles to C.
 
 ✔ **Finite Field is the primary data structure** : FF-asm is a CUDA alternative designed for computations over finite fields.
