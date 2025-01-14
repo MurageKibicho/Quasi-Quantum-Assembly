@@ -32,6 +32,7 @@ Our work is centered around these meticulously-researched topics in Number theor
 - The Chinese Remainder Theorem.
 
 Finite Field Assembly merely applies these obscure topics in mathematics to a mainstream problem - making AI compute available to everyone.
+We are financially supported by our user on [substack](https://leetarxiv.substack.com/)
 
 
 ✔ **Finite Field is the primary data structure** : FF-asm is a CUDA alternative designed for computations over finite fields.
@@ -40,7 +41,7 @@ Finite Field Assembly merely applies these obscure topics in mathematics to a ma
 
 ✔ **Extension of C89** - runs everywhere gcc is available.
 
-Join the [mailing list](https://antipythonai.substack.com/)
+Join the [mailing list](https://leetarxiv.substack.com/)
 
 <div align="center">
 <h1>✨ Getting started ✨</h1>
