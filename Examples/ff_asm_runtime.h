@@ -41,7 +41,6 @@ const size_t ff_asmDataTypeSize[] =
 	-1
 };
 
-typedef struct ff_asm_matrix_struct *ff_asmMatrix;
 typedef struct ff_asm_field_struct *ff_asmField;
 typedef struct ff_asm_node_struct *ff_asmNode;
 
@@ -64,13 +63,6 @@ struct ff_asm_field_struct
 	uint64_t *fieldOrder;
 	ff_asmNode dataHolder;
 	mpz_t maxDataSize;
-};
-
-struct ff_asm_matrix_struct ff_asmMatrix
-{
-	size_t rowCount;
-	size_t columnCount;
-	ff_asmField *field;
 };
 
 ff_asmNode ff_asmCreateNode(uint64_t dataLength, uint8_t type)
@@ -426,34 +418,4 @@ void ff_asmMultiply(ff_asmField field, size_t leftIndex, size_t rightIndex, size
 		mpz_clear(product);
 	}
 }
-
-/*Start ff_asmMatrix*/
-ff_asmMatrix ff_asmCreateMatrix(size_t rowCount, size_t columnCount, int **columnData, int **columnField )
-{
-	ff_asmMatrix matrix = malloc(sizeof(struct ff_asm_matrix_struct));
-	matrix->rowCount = rowCount;
-	matrix->columnCount = columnCount;
-	matrix->field = malloc(columnCount * sizeof(ff_asmField));
-	for(size_t i = 0; i < columnCount; i++)
-	{
-		matrix->field[i] = ff_asmMalloc(rowCount, Int_8_U_Field);
-		ff_asmAppendData(matrix->field[i], rowCount, columnData[i], Int_8_U_Field);
-	}
-
-	
-	return matrix;
-}
-
-void ff_asmFreeMatrix(ff_asmMatrix matrix)
-{
-	for(size_t i = 0; i < columnCount; i++)
-	{
-		ff_asmFreeField(matrix->field[i]);
-	}
-	free(matrix->field);
-}
-
-
-
-/*End ff_asmMatrix*/
 #endif // FF_ASM_RUNTIME_H
