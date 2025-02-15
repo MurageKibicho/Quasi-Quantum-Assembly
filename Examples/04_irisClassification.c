@@ -1,4 +1,5 @@
 #include "ff_asm_runtime.h"
+#include <string.h>
 typedef struct iris_dataset_struct
 {
    double inputs[4];
@@ -223,7 +224,7 @@ void ChineseRemainderTheorem(int fieldOrder, int *finiteField, int *mods, mpz_t 
 	mpz_clear(modularInverseHolder);
 }
 
-void LoadIrisInput(int batchSize, int layerIntegerCount, int startIndex, int finiteField[4], mpz_t *layerIntegers)
+void LoadIrisInput(int batchSize, int layerIntegerCount, int startIndex, int finiteField[4], mpz_t *layerIntegers, int *target)
 {
 	int mods[4] = {0};
 	int integerIndex = 0;
@@ -233,42 +234,22 @@ void LoadIrisInput(int batchSize, int layerIntegerCount, int startIndex, int fin
 		{
 			mods[j] = (int)(iris_dataset_holder_array[i].inputs[j] * 10);
 		}
+		for(int j = 0; j < 3; j++)
+		{
+			if(iris_dataset_holder_array[i].output[j] == 1.0)
+			{
+				target[integerIndex] = j;
+			}
+		}
 		ChineseRemainderTheorem(4, finiteField, mods, layerIntegers[integerIndex]);
 		integerIndex += 1;
 	}
 }
 
-//Run : clear && gcc 04_irisClassification.c -lgmp -lm -o m.o && ./m.o
-int main()
-{
-	ShuffleIrisDataset(iris_dataset_holder_array, 150);
-	srand(3456);
-	int batchSize = 4;//Left is 1 * batchSize
-	int hiddenLayerNeurons[] = {4, 3,5, 4};
-	int hiddenLayerCount = sizeof(hiddenLayerNeurons) / sizeof(int);
-	int weightArrayLength = 0;
-	int leftColumnCount = batchSize;
-	int rightRowCount[hiddenLayerCount];
-	int rightColumnCount[hiddenLayerCount];
-	int layerIntegerCount = batchSize;
-	mpz_t temporary; mpz_init(temporary);
-	mpz_t fieldOrder; mpz_init(fieldOrder);mpz_set_ui(fieldOrder, 1);
-	for(int i = 0; i < hiddenLayerCount; i++)
-	{
-		rightRowCount[i] = leftColumnCount;
-		rightColumnCount[i] = hiddenLayerNeurons[i];
-		weightArrayLength += rightRowCount[i] * rightColumnCount[i]; 
-		layerIntegerCount += hiddenLayerNeurons[i];
-		leftColumnCount = hiddenLayerNeurons[i];
-	}
-	
-	int *weights = calloc(weightArrayLength, sizeof(int));for(int i = 0; i < weightArrayLength; i++){weights[i] = rand() % 10;}
-	mpz_t *layerIntegers = malloc(layerIntegerCount * sizeof(mpz_t));for(int i = 0; i < layerIntegerCount; i++){mpz_init(layerIntegers[i]);}
-	mpz_t *activations = malloc(hiddenLayerCount * sizeof(mpz_t));for(int i = 0; i < hiddenLayerCount; i++){mpz_init(activations[i]);}
-	int finiteField[4] = {89, 83, 79, 73};for(int i = 0; i < 4; i++){mpz_mul_ui(fieldOrder, fieldOrder, finiteField[i]);}
-	int loadStartIndex = 0;
-	LoadIrisInput(batchSize,layerIntegerCount,loadStartIndex,finiteField, layerIntegers);
 
+void Forward(int weightArrayLength, int hiddenLayerCount, int layerIntegerCount, int rightRowCount[hiddenLayerCount], int rightColumnCount[hiddenLayerCount],mpz_t fieldOrder, mpz_t *layerIntegers, int *weights)
+{
+	mpz_t temporary; mpz_init(temporary);
 	int integerStoreIndex = 0;
 	int integerCurrentIndex = 0;
 	int weightCurrentIndex = 0;
@@ -295,16 +276,126 @@ int main()
 		}
 		integerCurrentIndex += rightRowCount[k];
 	}
-	gmp_printf("%Zd\n%Zd\n%Zd\n%Zd\n",layerIntegers[16],layerIntegers[17],layerIntegers[18],layerIntegers[19]);
+	for(int i = 0; i < 4; i++)
+	{
+		mpz_mod_ui(layerIntegers[16 + i], layerIntegers[16 + i], 3);
+		//gmp_printf("%Zd\n", layerIntegers[16 + i]);
+	}
+	mpz_clear(temporary);
+}
+
+void Backward(int weightArrayLength, int hiddenLayerCount, int layerIntegerCount, int rightRowCount[hiddenLayerCount], int rightColumnCount[hiddenLayerCount],mpz_t fieldOrder, mpz_t *layerIntegers, int *weights, int *target, int *previousSuccess)
+{
+	int *weightsCopy = calloc(weightArrayLength, sizeof(int));
+	memcpy(weightsCopy, weights, weightArrayLength * sizeof(int));
+	int perturbIndex = rand() % weightArrayLength;
+	weights[perturbIndex] += 1;
+	//gmp_printf("%Zd\n", fieldOrder);
+	int targetLength = rightColumnCount[hiddenLayerCount-1];
+	//printf("%d\n",rightColumnCount[hiddenLayerCount-1]);
+	mpz_t temporary; mpz_init(temporary);
+	int integerStoreIndex = 0;
+	int integerCurrentIndex = 0;
+	int weightCurrentIndex = 0;
+	for(int k = 0; k < hiddenLayerCount; k++)
+	{
+		integerStoreIndex += rightRowCount[k];
+		//printf("%d %d %d\n", rightRowCount[k], rightColumnCount[k],integerStoreIndex);
+		for(int i = 0; i < rightColumnCount[k]; i++)
+		{
+			//printf(" %2d :  ", integerStoreIndex+i);
+			mpz_set_ui(layerIntegers[integerStoreIndex+i], 0);
+			for(int j = 0; j < rightRowCount[k]; j++)
+			{
+				//printf(" (%2d, %2d) ", weightCurrentIndex, integerCurrentIndex+j);
+				mpz_mul_ui(temporary, layerIntegers[integerCurrentIndex+j], weights[weightCurrentIndex]);
+				mpz_add(layerIntegers[integerStoreIndex+i], layerIntegers[integerStoreIndex+i], temporary);
+				assert(weightCurrentIndex < weightArrayLength);
+				assert(integerCurrentIndex+j < layerIntegerCount);
+				weightCurrentIndex += 1;
+			}
+			mpz_powm_ui(layerIntegers[integerStoreIndex+i], layerIntegers[integerStoreIndex+i], 5,fieldOrder);
+			//printf("\n");
+			//integerStoreIndex += 1;
+		}
+		integerCurrentIndex += rightRowCount[k];
+	}
+	int currentSuccess = 0;
+	for(int i = 0; i < targetLength; i++)
+	{
+		mpz_mod_ui(layerIntegers[16 + i], layerIntegers[16 + i], 3);
+		if(mpz_cmp_ui(layerIntegers[16 + i], target[i]) == 0)
+		{
+			currentSuccess += 1;
+		}
+		gmp_printf("(%Zd %d)", layerIntegers[16 + i], target[i]);
+	}
+	printf(": %3d %3d\n",*previousSuccess, currentSuccess);
+	if(currentSuccess > *previousSuccess)
+	{
+		*previousSuccess = currentSuccess;
+		memcpy(weights, weightsCopy, weightArrayLength * sizeof(int));
+	}
+	mpz_clear(temporary);
+	free(weightsCopy);
+}
+
+//Run : clear && gcc 04_irisClassification.c -lgmp -lm -o m.o && ./m.o
+int main()
+{
+	ShuffleIrisDataset(iris_dataset_holder_array, 150);
+	srand(3456);
+	int batchSize = 4;//Left is 1 * batchSize
+	int hiddenLayerNeurons[] = {10, 8, 4};
+	int hiddenLayerCount = sizeof(hiddenLayerNeurons) / sizeof(int);
+	int weightArrayLength = 0;
+	int leftColumnCount = batchSize;
+	int rightRowCount[hiddenLayerCount];
+	int rightColumnCount[hiddenLayerCount];
+	int layerIntegerCount = batchSize;
 	
-	//Backwards
+	mpz_t fieldOrder; mpz_init(fieldOrder);mpz_set_ui(fieldOrder, 1);
+	for(int i = 0; i < hiddenLayerCount; i++)
+	{
+		rightRowCount[i] = leftColumnCount;
+		rightColumnCount[i] = hiddenLayerNeurons[i];
+		weightArrayLength += rightRowCount[i] * rightColumnCount[i]; 
+		layerIntegerCount += hiddenLayerNeurons[i];
+		leftColumnCount = hiddenLayerNeurons[i];
+	}
+	layerIntegerCount += 1;//Output
 	
-	
+	int *weights = calloc(weightArrayLength, sizeof(int));for(int i = 0; i < weightArrayLength; i++){weights[i] = rand() % 10;}
+	mpz_t *layerIntegers = malloc(layerIntegerCount * sizeof(mpz_t));for(int i = 0; i < layerIntegerCount; i++){mpz_init(layerIntegers[i]);}
+	mpz_t *activations = malloc(hiddenLayerCount * sizeof(mpz_t));for(int i = 0; i < hiddenLayerCount; i++){mpz_init(activations[i]);}
+	int finiteField[4] = {89, 83, 79, 73};for(int i = 0; i < 4; i++){mpz_mul_ui(fieldOrder, fieldOrder, finiteField[i]);}
+	//Set field order to closest prime
+	mpz_nextprime(fieldOrder, fieldOrder);
+	int loadStartIndex = 0;
+	int target[4] = {0};
+	int previousSuccess = 0;
+	for(int i = 0; i < 50; i++)
+	{
+		LoadIrisInput(batchSize,layerIntegerCount,loadStartIndex,finiteField, layerIntegers, target);
+		//Forward(weightArrayLength, hiddenLayerCount, layerIntegerCount, rightRowCount, rightColumnCount, fieldOrder,layerIntegers, weights);
+		Backward(weightArrayLength, hiddenLayerCount, layerIntegerCount, rightRowCount, rightColumnCount, fieldOrder,layerIntegers, weights, target, &previousSuccess);
+		if(previousSuccess == batchSize)
+		{
+			loadStartIndex += batchSize;
+			previousSuccess = 0;
+			if(loadStartIndex > 74)
+			{
+				loadStartIndex = 0;
+			}
+			printf("|%d|\n",loadStartIndex);
+			//break;
+		}
+	}
 	
 	for(int i = 0; i < layerIntegerCount; i++){mpz_clear(layerIntegers[i]);}
 	for(int i = 0; i < hiddenLayerCount; i++){mpz_clear(activations[i]);}
 	free(layerIntegers);free(activations);
-	free(weights);mpz_clear(temporary);mpz_clear(fieldOrder);
+	free(weights);;mpz_clear(fieldOrder);
 	return 0;
 }
 
