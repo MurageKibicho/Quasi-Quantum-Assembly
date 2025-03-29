@@ -361,17 +361,6 @@ ModelParameters GetModelParameters(size_t fileSize, unsigned char *fileData)
 	return parameters;
 }
 
-struct fc
-{
-	float *in;
-	float *weight;
-	float *bias;
-	float *out;
-	size_t in_count;
-	size_t out_count;
-	size_t sample_count;
-};
-
 struct ln
 {
 	float *in;
@@ -401,6 +390,7 @@ void ln(struct ln *ln)
 			total_diff_sq += diff * diff;
 		}
 		float r_stddev = 1.0f / sqrtf(total_diff_sq / ln->in_count);
+		//printf("%.3f %.3f\n", r_stddev, mean);
 		float *output = ln->out + i * ln->in_count;
 		float *weight = ln->weight;
 		float *bias   = ln->bias;	
@@ -411,6 +401,17 @@ void ln(struct ln *ln)
 		}
 	}
 }
+
+struct fc
+{
+	float *in;
+	float *weight;
+	float *bias;
+	float *out;
+	size_t in_count;
+	size_t out_count;
+	size_t sample_count;
+};
 
 void fc(struct fc *fc)
 {
@@ -518,6 +519,7 @@ int main()
 			total += (double) ((float *) parameters->activations->h[layer_i].attn.c_attn.out)[i];
 		}
 		printf("Test Attention : %f %ld\n",total, parameters->h[layer_i].attn.c_attn.weightLength);
+		//exit(1);
 		/*Heads*/
 		memset(parameters->activations->h[layer_i].attn.z.out, 0, sizeof(parameters->activations->h[layer_i].attn.z.out));
 		for(size_t head_i = 0; head_i < 12; head_i++)
@@ -576,6 +578,7 @@ int main()
 			total += (double) ((float *) parameters->activations->h[layer_i].attn.z.out)[i];
 		}
 		printf("Test Head : %f \n",total);
+		
 		fc(&(struct fc)
 		{
 		.in = (float *) parameters->activations->h[layer_i].attn.z.out,
@@ -591,7 +594,7 @@ int main()
 		{
 			total += (double) ((float *) parameters->activations->h[layer_i].attn.c_proj.out)[i];
 		}
-		printf("Test Att : %f \n",total);
+		printf("Test FC2 : %f \n",total);
 		
 		/*Residual layer*/
 		float *in_1 = layer_in;
@@ -608,7 +611,7 @@ int main()
 			total += (double) ((float *) parameters->activations->h[layer_i].res_1.out)[i];
 		}
 		printf("Test Residual : %f \n",total);
-		 
+		
 		ln(&(struct ln)
 		{
 		.in = (float *) parameters->activations->h[layer_i].res_1.out,
@@ -690,6 +693,7 @@ int main()
 		}
 		printf("Test Residual : %f \n",total);
 	} 
+	
 	ln(&(struct ln)
 	{
 	.in = (float *) parameters->activations->h[11].res_2.out,
@@ -739,7 +743,7 @@ int main()
 		total += (double) ((float *) parameters->activations->unembedding.out)[i];
 	}
 	printf("Test output norm : %f\n",total);
-	
+	exit(1);
 	float maximumValue = -INFINITY;
 	size_t maxIndex = 0;
 	float *row = (float *) parameters->activations->unembedding.out + (inputSize - 1) *tf_d_vocab;
