@@ -459,10 +459,15 @@ int main()
 		uint16_t token = tokenizedData[i];
 		for(size_t j = 0; j < tf_d_model; j++)
 		{
-			parameters->activations->embedding.out[i][j] = parameters->wte.weight[token * tf_d_model + j] + parameters->wpe.weight[i * tf_d_model + j];
+			float weight = parameters->wte.weight[token * tf_d_model + j] ;
+			float positionEmbedding = parameters->wpe.weight[i * tf_d_model + j];
+			parameters->activations->embedding.out[i][j] = weight + positionEmbedding;
+			
+			printf("(%u : %.3f %.3f)\n", token, weight, positionEmbedding);
 		}
 	}
 	TestOutput(inputSize * tf_d_model, (float *) parameters->activations->embedding.out, "Embedding");
+	exit(1);
 	/*Layer norm*/
 	for(int layerIndex = 0; layerIndex < 12; layerIndex++)
 	{
