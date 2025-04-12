@@ -254,7 +254,11 @@ void SaveImage(char *outputFileName, int imageHeight, int imageWidth, int colorC
 	unsigned char *image = calloc(imageHeight * imageWidth * colorChannels, sizeof(unsigned char));
 	for(int i = 0; i < imageHeight * imageWidth * colorChannels; i++)
 	{
-		image[i] = (unsigned char) (imageFloat[i] * 255.0f);
+		//Clamp results to prevent overflow
+		imageFloat[i] *= 255.0f;
+		if(imageFloat[i] > 255.0f){imageFloat[i] = 255.0f;}
+		if(imageFloat[i] < 0.0f){imageFloat[i] = 0.0f;}
+		image[i] = (unsigned char) imageFloat[i];
 	}
 	stbi_write_jpg(outputFileName,imageWidth,imageHeight,colorChannels,image,80);
 	free(image);
