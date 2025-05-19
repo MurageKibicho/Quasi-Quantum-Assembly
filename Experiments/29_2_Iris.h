@@ -162,3 +162,14 @@ iris_dataset_holder iris_dataset_holder_array[ ] =
 { { 5.9, 3.0, 5.1, 1.8 }, { 0.0, 0.0, 1.0 } }
 };
 
+void ShuffleIrisDataset(iris_dataset_holder *array, size_t n)
+{
+	for(size_t i = n - 1; i > 0; i--)
+	{
+		size_t j = rand() % (i + 1);
+		iris_dataset_holder temp = array[i];
+		array[i] = array[j];
+		array[j] = temp;
+	}
+}
+
