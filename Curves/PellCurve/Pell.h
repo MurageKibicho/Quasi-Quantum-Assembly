@@ -9,6 +9,7 @@
 #include <flint/fmpz_factor.h>
 
 typedef struct pell_curve_struct *PellCurve;
+typedef struct pell_point_struct *PellPoint;
 struct pell_curve_struct
 {
 	fmpz_t D;
@@ -20,18 +21,183 @@ struct pell_curve_struct
 	fmpz_t temp0;
 	fmpz_t temp1;
 	fmpz_t temp2;
+	flint_rand_t randomState;
 	fmpz_factor_t factorizationPlusOne;
 	fmpz_factor_t factorizationMinusOne;
+	PellPoint fundamentalSolution;
+	PellPoint tempPoint0;
+	PellPoint tempPoint1;
+	bool foundGenerator;
 	int legendreSymbolD;
 	int legendreSymbolN;
 };
 
-typedef struct pell_point_struct *PellPoint;
+
 struct pell_point_struct
 {
 	fmpz_t x;
 	fmpz_t y;
 };
+
+PellPoint PellCurve_CreateEmptyPoint()
+{
+	PellPoint pellPoint = malloc(sizeof(struct pell_point_struct));
+	fmpz_init(pellPoint->x);
+	fmpz_init(pellPoint->y);
+	return pellPoint;
+}
+
+void PellCurve_ResetPoint(PellPoint point)
+{
+	fmpz_set_ui(point->x, 0);
+	fmpz_set_ui(point->y, 0);
+}
+
+void PellCurve_CopyPoint(PellPoint source, PellPoint destination)
+{
+	fmpz_set(destination->x, source->x);
+	fmpz_set(destination->y, source->y);
+}
+
+void PellCurve_PrintPoint(PellPoint pellPoint)
+{
+	printf("x: ");fmpz_print(pellPoint->x);printf(" ");
+	printf("y: ");fmpz_print(pellPoint->y);printf("\n");
+}
+
+int PellCurve_TestPointEquality(PellPoint a, PellPoint b)
+{
+	return fmpz_cmp(a->x, b->x) == 0 && fmpz_cmp(a->y, b->y) == 0;	
+}
+
+void PellCurve_ClearPoint(PellPoint pellPoint)
+{
+	fmpz_clear(pellPoint->x);
+	fmpz_clear(pellPoint->y);
+	free(pellPoint);
+}
+
+void PellCurve_Multiply(PellPoint result, PellPoint a, PellPoint b, fmpz_t D, fmpz_t primeNumber)
+{
+	fmpz_t temp1;
+	fmpz_init(temp1);
+	//result->x
+	fmpz_mul(temp1, D, a->y);
+	fmpz_mul(result->x, temp1, b->y);
+	fmpz_mul(temp1, a->x, b->x);
+	fmpz_add(result->x, result->x, temp1);
+	fmpz_mod(result->x, result->x, primeNumber);
+	
+	//result->y
+	fmpz_mul(temp1, a->x, b->y);
+	fmpz_mul(result->y, a->y, b->x);
+	fmpz_add(result->y, result->y, temp1);
+	fmpz_mod(result->y, result->y, primeNumber);
+	
+	fmpz_clear(temp1);
+}
+
+bool PellCurve_IsValidPellPoint(fmpz_t x, fmpz_t y, fmpz_t D, fmpz_t n, fmpz_t p)
+{
+	fmpz_t xSquare, DySquare, tmp;
+	fmpz_init(xSquare);
+	fmpz_init(DySquare);
+	fmpz_init(tmp);
+	//x² mod p
+	fmpz_mul(xSquare, x, x);
+	fmpz_mod(xSquare, xSquare, p);
+	//D * y² mod p
+	fmpz_mul(DySquare, y, y);
+	fmpz_mul(DySquare, DySquare, D);
+	fmpz_mod(DySquare, DySquare, p);
+	
+	//Check if (x² - Dy²) ≡ n mod p
+	fmpz_sub(tmp, xSquare, DySquare);
+	fmpz_mod(tmp, tmp, p);
+	
+	bool isOnCurve = (fmpz_cmp(tmp, n) == 0);
+	fmpz_clear(xSquare);
+	fmpz_clear(DySquare);
+	fmpz_clear(tmp);
+	return isOnCurve;
+}
+
+
+void PellCurve_ScalarPower(PellPoint result, PellPoint base,  PellPoint temp0, PellPoint currentBase, fmpz_t D, fmpz_t privateKey, fmpz_t primeNumber)
+{
+	//Set result to infinity
+	fmpz_set_ui(result->x, 1);
+	fmpz_set_ui(result->y, 0);
+	PellCurve_CopyPoint(base,currentBase);
+	
+	//Find no. of bits in private key
+	size_t binaryLength = fmpz_sizeinbase(privateKey, 2);
+	for(ssize_t i = 0; i < binaryLength; i++)
+	{
+		if(fmpz_tstbit(privateKey, i) != 0)
+		{
+			PellCurve_Multiply(temp0, result, currentBase, D, primeNumber);
+			PellCurve_CopyPoint(temp0,result);
+		}
+		PellCurve_Multiply(temp0, currentBase, currentBase, D, primeNumber);
+		PellCurve_CopyPoint(temp0,currentBase);
+		//fmpz_print(base->x);printf(" ");fmpz_print(base->y);printf("\n");
+	}
+}
+
+bool PellCurve_FindFundamentalSolution(PellPoint fundamentalSolution, fmpz_t groupOrder, fmpz_t n, fmpz_t D, fmpz_t primeNumber, fmpz_factor_t factorization, flint_rand_t randomState)
+{
+	int trials = 1000;
+	bool isGenerator = false;
+	PellPoint result = PellCurve_CreateEmptyPoint();
+	PellPoint temp0  = PellCurve_CreateEmptyPoint();
+	PellPoint temp1  = PellCurve_CreateEmptyPoint();
+	fmpz_t temp,rhs, y_sq;
+	fmpz_init(temp);
+        fmpz_init(rhs); fmpz_init(y_sq);
+	while(isGenerator == false && trials > 0)
+	{
+		//Generate random x
+		fmpz_randm(fundamentalSolution->x, randomState, primeNumber);
+
+		//Solve for y: x² - Dy² = 1 ⇒ Dy² = x² - 1
+		fmpz_mul(rhs, fundamentalSolution->x, fundamentalSolution->x);
+		fmpz_sub_ui(rhs, rhs, 1); 
+		fmpz_mod(rhs, rhs, primeNumber);
+        
+		// Check if (x² - 1)/D is a square
+		fmpz_invmod(y_sq, D, primeNumber);
+		fmpz_mul(y_sq, y_sq, rhs);      
+		fmpz_mod(y_sq, y_sq, primeNumber);
+        
+		if(fmpz_sqrtmod(fundamentalSolution->y, y_sq, primeNumber) && fmpz_cmp_ui(fundamentalSolution->x,0) != 0)
+		{
+			isGenerator  =true;
+			//Test if it has full order q+1
+			for(int i = 0; i < factorization->num; i++)
+			{
+				fmpz_divexact(temp, groupOrder, factorization->p + i);
+				PellCurve_ScalarPower(result, fundamentalSolution, temp0, temp1, temp, D, primeNumber);
+				PellCurve_PrintPoint(fundamentalSolution);
+				if(fmpz_cmp_ui(result->x, 1) == 0 && fmpz_cmp_ui(result->y, 0) == 0)
+				{
+					isGenerator = false;
+					break;
+				}
+			}
+			if(isGenerator == true){break;}
+		}
+		trials--;
+	}
+
+	PellCurve_ClearPoint(result);
+	PellCurve_ClearPoint(temp0);
+	PellCurve_ClearPoint(temp1);
+	fmpz_clear(temp);
+	return isGenerator;
+}
+
+
 
 PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 {	
@@ -47,7 +213,7 @@ PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 	fmpz_init(pellCurve->temp2);
 	fmpz_factor_init(pellCurve->factorizationPlusOne);
 	fmpz_factor_init(pellCurve->factorizationMinusOne);
-	
+	flint_rand_init(pellCurve->randomState);
 	fmpz_set(pellCurve->D, D);
 	fmpz_set(pellCurve->n, n);
 	fmpz_set(pellCurve->prime, prime);
@@ -57,6 +223,10 @@ PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 	fmpz_factor(pellCurve->factorizationPlusOne, pellCurve->primePlusOne);
 	pellCurve->legendreSymbolD = fmpz_jacobi(D, prime);
 	pellCurve->legendreSymbolN = fmpz_jacobi(n, prime);
+	pellCurve->fundamentalSolution = PellCurve_CreateEmptyPoint();
+	pellCurve->tempPoint0 = PellCurve_CreateEmptyPoint();
+	pellCurve->tempPoint1 = PellCurve_CreateEmptyPoint();
+	pellCurve->foundGenerator = false;
 	if(pellCurve->legendreSymbolD == 0)
 	{
 		fmpz_set_ui(pellCurve->groupOrder, 0);
@@ -64,7 +234,6 @@ PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 		{
 			fmpz_set_ui(pellCurve->groupOrder, 2);
 		}
-
 	}
 	else if(pellCurve->legendreSymbolD == 1)
 	{
@@ -80,6 +249,7 @@ PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 	else
 	{	
 		fmpz_set(pellCurve->groupOrder, pellCurve->primePlusOne);
+		pellCurve->foundGenerator = PellCurve_FindFundamentalSolution(pellCurve->fundamentalSolution, pellCurve->groupOrder , pellCurve->n, pellCurve->D, pellCurve->prime, pellCurve->factorizationPlusOne, pellCurve->randomState);
 	}
 	return pellCurve;
 }
@@ -99,7 +269,10 @@ void PellCurve_Clear(PellCurve pellCurve)
 		fmpz_clear(pellCurve->temp2);
 		fmpz_factor_clear(pellCurve->factorizationPlusOne);
 		fmpz_factor_clear(pellCurve->factorizationMinusOne);
-	
+		flint_rand_clear(pellCurve->randomState);
+		PellCurve_ClearPoint(pellCurve->fundamentalSolution );
+		PellCurve_ClearPoint(pellCurve->tempPoint0 );
+		PellCurve_ClearPoint(pellCurve->tempPoint1 );
 		free(pellCurve);
 	}
 }
@@ -130,69 +303,6 @@ void PellCurve_PrettyPrint(PellCurve pellCurve)
 	printf("\n");
 }
 
-PellPoint PellCurve_CreateEmptyPoint()
-{
-	PellPoint pellPoint = malloc(sizeof(struct pell_point_struct));
-	fmpz_init(pellPoint->x);
-	fmpz_init(pellPoint->y);
-	return pellPoint;
-}
-
-void PellCurve_ResetPoint(PellPoint point)
-{
-	fmpz_set_ui(point->x, 0);
-	fmpz_set_ui(point->y, 0);
-}
-
-void PellCurve_CopyPoint(PellPoint source, PellPoint destination)
-{
-	fmpz_set(destination->x, source->x);
-	fmpz_set(destination->y, source->y);
-}
-
-int PellCurve_TestPointEquality(PellPoint a, PellPoint b)
-{
-	return fmpz_cmp(a->x, b->x) == 0 && fmpz_cmp(a->y, b->y) == 0;	
-}
-
-bool PellCurve_IsValidPellPoint(fmpz_t x, fmpz_t y, fmpz_t D, fmpz_t n, fmpz_t p)
-{
-	fmpz_t xSquare, DySquare, tmp;
-	fmpz_init(xSquare);
-	fmpz_init(DySquare);
-	fmpz_init(tmp);
-	//x² mod p
-	fmpz_mul(xSquare, x, x);
-	fmpz_mod(xSquare, xSquare, p);
-	//D * y² mod p
-	fmpz_mul(DySquare, y, y);
-	fmpz_mul(DySquare, DySquare, D);
-	fmpz_mod(DySquare, DySquare, p);
-	
-	//Check if (x² - Dy²) ≡ n mod p
-	fmpz_sub(tmp, xSquare, DySquare);
-	fmpz_mod(tmp, tmp, p);
-	
-	bool isOnCurve = (fmpz_cmp(tmp, n) == 0);
-	fmpz_clear(xSquare);
-	fmpz_clear(DySquare);
-	fmpz_clear(tmp);
-	return isOnCurve;
-}
-
-
-void PellCurve_PrintPoint(PellPoint pellPoint)
-{
-	printf("x: ");fmpz_print(pellPoint->x);printf(" ");
-	printf("y: ");fmpz_print(pellPoint->y);printf("\n");
-}
-
-void PellCurve_ClearPoint(PellPoint pellPoint)
-{
-	fmpz_clear(pellPoint->x);
-	fmpz_clear(pellPoint->y);
-	free(pellPoint);
-}
 
 PellPoint *PellCurve_GenerateAllPoints(PellCurve pellCurve)
 {	
@@ -274,6 +384,19 @@ PellPoint *PellCurve_GenerateAllPoints(PellCurve pellCurve)
 			}
 		}
 	}
+	else
+	{
+		assert(pellCurve->foundGenerator == true);
+		//allocate (p+1) points
+		allPoints = malloc(fmpz_get_ui(pellCurve->groupOrder) * sizeof(PellPoint));
+		for(int i = 0; i < fmpz_get_ui(pellCurve->groupOrder); i++)
+		{
+			allPoints[i] = PellCurve_CreateEmptyPoint(); 
+			fmpz_set_ui(pellCurve->temp0, i);
+			//PellCurve_CopyPoint(pellCurve->fundamentalSolution,allPoints[i]);
+			PellCurve_ScalarPower(allPoints[i], pellCurve->fundamentalSolution, pellCurve->tempPoint0, pellCurve->tempPoint1, pellCurve->D, pellCurve->temp0, pellCurve->prime);
+		}
+	}
 	return allPoints;
 }
 
@@ -298,7 +421,8 @@ void PellCurve_DestroyAllPoints(PellCurve pellCurve, PellPoint *allPoints)
 				PellCurve_ClearPoint(allPoints[i]);	
 			}
 			free(allPoints);
-		}
-		
+		}	
 	}
 }
+
+

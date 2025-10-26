@@ -90,14 +90,34 @@ void TestSmallCurveLegendre1()
 
 void TestSmallCurveLegendreMinusOne()
 {
+	fmpz_t prime, D, n;
+	fmpz_init(prime);
+	fmpz_init(D);
+	fmpz_init(n);
+	fmpz_set_ui(prime, 2239);
 	
+	//D legendre symbol is -1 mod p
+	fmpz_set_ui(D, 4428);
+	fmpz_set_ui(n, 1);
+	PellCurve curve2239QR = PellCurve_CreateCurveAuto(prime, D,n);
+	PellPoint *curve2239QR_Points = PellCurve_GenerateAllPoints(curve2239QR);
+	for(int i = 0; i < fmpz_get_ui(curve2239QR->groupOrder); i++)
+	{
+		printf("%d: ", i);PellCurve_PrintPoint(curve2239QR_Points[i]);
+	}
+	PellCurve_PrettyPrint(curve2239QR);
+	PellCurve_DestroyAllPoints(curve2239QR, curve2239QR_Points);
+	PellCurve_Clear(curve2239QR);
+	fmpz_clear(prime);
+	fmpz_clear(D);
+	fmpz_clear(n);
 }
 
 int main()
 {
 	//TestSmallCurveLegendre0();
 	//TestSmallCurveLegendre1();
-	TestSmallCurveLegendreMinusOne();
+	//TestSmallCurveLegendreMinusOne();
 	flint_cleanup();
 	return 0;
 }
