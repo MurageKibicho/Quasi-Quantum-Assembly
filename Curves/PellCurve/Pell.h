@@ -178,7 +178,6 @@ bool PellCurve_FindFundamentalSolution(PellPoint fundamentalSolution, fmpz_t gro
 			{
 				fmpz_divexact(temp, groupOrder, factorization->p + i);
 				PellCurve_ScalarPower(result, fundamentalSolution, temp0, temp1, temp, D, primeNumber);
-				PellCurve_PrintPoint(fundamentalSolution);
 				if(fmpz_cmp_ui(result->x, 1) == 0 && fmpz_cmp_ui(result->y, 0) == 0)
 				{
 					isGenerator = false;
