@@ -9,18 +9,38 @@
 #include <flint/fmpz.h>
 #include <flint/fmpz_factor.h>
 
-
-typedef struct elliptic_simple_point_struct *EllipticSecp;
-struct elliptic_simple_point_struct
+typedef struct elliptic_secp_curve_struct *EllipticSecpCurve;
+typedef struct elliptic_secp_point_struct *EllipticSecp;
+struct elliptic_secp_point_struct
 {
 	fmpz_t x;
 	fmpz_t y;
 	int infinity;
 };
+int mersenneExponents [] = {2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127, 521, 607, 1279, 2203, 2281, 3217, 4253, 4423, 9689, 9941, 11213, 19937, 21701, 23209, 44497, 86243, 110503, 132049, 216091, 756839, 859433, 1257787, 1398269, 2976221, 3021377, 6972593, 13466917, 20996011, 24036583, 25964951, 30402457, 32582657, 37156667, 42643801, 43112609, 57885161, 74207281, 77232917, 82589933};
+int mersenneLength = sizeof(mersenneExponents) / sizeof(int);
 
+struct elliptic_secp_curve_struct
+{
+	int mersenneExponent;
+	int bitCount;
+	EllipticSecp generator;
+	EllipticSecp result0;
+	EllipticSecp temp0;
+	EllipticSecp temp1;
+	EllipticSecp *cachedDoubles;
+	flint_rand_t randomState;
+	fmpz_factor_t factorization;
+	fmpz_t pointOrder;
+	fmpz_t pointOrderMinusOne;
+	fmpz_t testPrime;
+	fmpz_t primeNumber;
+	fmpz_t primeNumberMinusOne;
+	fmpz_t primitiveRoot;
+};
 EllipticSecp EllipticSecp_CreatePoint()
 {
-	EllipticSecp point = malloc(sizeof(struct elliptic_simple_point_struct));
+	EllipticSecp point = malloc(sizeof(struct elliptic_secp_point_struct));
 	fmpz_init(point->x);
 	fmpz_init(point->y);
 	point->infinity = 0;
@@ -335,6 +355,36 @@ void EllipticSecp_LSBCachedMultiplication(int bitCount, EllipticSecp *cachedDoub
 	EllipticSecp_DestroyPoint(temp1);
 }
 
+bool EllipticSecp_IsValidSecpPoint(fmpz_t x, fmpz_t y, fmpz_t p)
+{
+	fmpz_t lhs, rhs, x_cubed,b;
+	fmpz_init(lhs);
+	fmpz_init(rhs);
+	fmpz_init(x_cubed);
+	fmpz_init(b);
+	fmpz_set_ui(b, 7);
+	//Compute y^2 mod p
+	fmpz_powm_ui(lhs, y, 2, p);
+
+	//Compute x^3 mod p
+	fmpz_powm_ui(x_cubed, x, 3, p);
+
+	//Compute x^3 + b mod p
+	fmpz_add(rhs, x_cubed, b);
+	fmpz_mod(rhs, rhs, p);
+
+	//Compare lhs and rhs
+	bool result = (fmpz_cmp(lhs, rhs) == 0);
+
+	//Clean up
+	fmpz_clear(b);
+	fmpz_clear(lhs);
+	fmpz_clear(rhs);
+	fmpz_clear(x_cubed);
+	return result;
+}
+
+
 bool EllipticSecp_FindRandomSecpPoint(EllipticSecp result, fmpz_t primeNumber, flint_rand_t randomState)
 {
 	fmpz_t x, y, rhs, lhs, tmp;
@@ -379,6 +429,20 @@ bool EllipticSecp_FindRandomSecpPoint(EllipticSecp result, fmpz_t primeNumber, f
 	fmpz_clear(tmp);
 
 	return found;
+}
+void EllipticSecp_FindNextMersennePoint(int mersenneExponent, EllipticSecp current, EllipticSecp temp0, EllipticSecp temp1, fmpz_t primeNumber)
+{
+	//Double previous point p times
+	EllipticSecp_CopyPoint(current, temp0);
+	for(int p = 0; p < mersenneExponent; p++)
+	{
+		EllipticSecp_AddCurvePoints(temp1, temp0, temp0, primeNumber);
+		EllipticSecp_CopyPoint(temp1, temp0);
+	}
+	//Find Previous point's inverse
+	EllipticSecp_FindPointInverse(current, temp1, primeNumber);
+	//Add doubled point to inverse
+	EllipticSecp_AddCurvePoints(current, temp0, temp1, primeNumber);
 }
 
 bool EllipticSecp_BruteforcePointOrder(EllipticSecp generator, fmpz_t primeNumber, fmpz_t pointOrder)
@@ -432,6 +496,140 @@ bool EllipticSecp_RaiseGeneratorTest(fmpz_t testPrime, fmpz_t pointOrder, fmpz_t
 	result = true;
 	return result;
 }
+
+EllipticSecpCurve EllipticSecpCurve_Allocate()
+{
+	EllipticSecpCurve curve = malloc(sizeof(struct elliptic_secp_curve_struct));
+	curve->generator = EllipticSecp_CreatePoint();
+	curve->result0 = EllipticSecp_CreatePoint();
+	curve->temp0 = EllipticSecp_CreatePoint();
+	curve->temp1 = EllipticSecp_CreatePoint();
+	curve->cachedDoubles = NULL;
+	fmpz_init(curve->pointOrderMinusOne);
+	fmpz_init(curve->pointOrder);
+	fmpz_init(curve->primeNumber);
+	fmpz_init(curve->primitiveRoot);
+	fmpz_init(curve->testPrime);
+	fmpz_init(curve->primeNumberMinusOne);
+	fmpz_factor_init(curve->factorization);
+	flint_rand_init(curve->randomState);
+	return curve;
+}
+
+EllipticSecpCurve EllipticSecpCurve_CreateSmallCurve(int primeNumberHolder, int groupOrderHolder, int bitCount)
+{
+	assert(primeNumberHolder % 3 == 1);
+	EllipticSecpCurve curve = EllipticSecpCurve_Allocate();
+	fmpz_set_ui(curve->primeNumber, primeNumberHolder);
+	fmpz_sub_ui(curve->primeNumberMinusOne, curve->primeNumber, 1);
+
+	bool foundPrimePointOrder = false;
+	int attempts = 1000;
+	while(foundPrimePointOrder == false)
+	{
+		bool foundSecpPoint = EllipticSecp_FindRandomSecpPoint(curve->generator, curve->primeNumber, curve->randomState);
+		assert(foundSecpPoint);
+		bool foundPointOrder= EllipticSecp_BruteforcePointOrder(curve->generator, curve->primeNumber,curve->pointOrder);
+		assert(foundPointOrder);
+		if(fmpz_cmp_ui(curve->pointOrder, groupOrderHolder) == 0)
+		{
+			foundPrimePointOrder = true;
+			break;
+		}
+		attempts -= 1;
+		if(attempts == 0){break;}
+	}
+	assert(foundPrimePointOrder == true);
+	fmpz_set_ui(curve->pointOrder, groupOrderHolder);
+	fmpz_sub_ui(curve->pointOrderMinusOne, curve->pointOrder, 1);
+	fmpz_factor(curve->factorization, curve->pointOrderMinusOne);
+	
+	//Check Mersenne Exponents
+	int mersenneFoundCount = 0;
+	for(int i = 0; i < mersenneLength; i++)
+	{
+		fmpz_one(curve->testPrime);
+		fmpz_mul_2exp(curve->testPrime, curve->testPrime, mersenneExponents[i]); 
+		fmpz_sub_ui(curve->testPrime, curve->testPrime, 1);
+		if(fmpz_cmp(curve->testPrime, curve->primeNumber) > 0){break;}
+		bool testResult = EllipticSecp_RaiseGeneratorTest(curve->testPrime, curve->pointOrder, curve->pointOrderMinusOne, curve->factorization);
+		if(testResult == true)
+		{
+			curve->mersenneExponent = mersenneExponents[i];
+			fmpz_set(curve->primitiveRoot, curve->testPrime);
+		}
+	}
+	curve->bitCount = bitCount;
+	curve->cachedDoubles = EllipticSecp_CacheDoubles(curve->generator, curve->primeNumber, curve->bitCount);
+	return curve;
+}
+
+
+void EllipticSecp_DestroyCurve(EllipticSecpCurve curve)
+{
+	if(curve)
+	{
+		EllipticSecp_DestroyPoint(curve->generator);
+		EllipticSecp_DestroyPoint(curve->result0);
+		EllipticSecp_DestroyPoint(curve->temp0);
+		EllipticSecp_DestroyPoint(curve->temp1);
+		for(int i = 0; i < curve->bitCount; i++){EllipticSecp_DestroyPoint(curve->cachedDoubles[i]);}free(curve->cachedDoubles);
+		flint_rand_clear(curve->randomState);
+		fmpz_factor_clear(curve->factorization);
+		fmpz_clear(curve->pointOrder);
+		fmpz_clear(curve->primitiveRoot);
+		fmpz_clear(curve->pointOrderMinusOne);
+		fmpz_clear(curve->primeNumber);
+		fmpz_clear(curve->primeNumberMinusOne);
+		fmpz_clear(curve->testPrime);
+		free(curve);
+	}
+}
+
+
+void EllipticSecp_PrintCurve(EllipticSecpCurve curve)
+{
+	if(curve)
+	{
+		printf("Prime Number: ");fmpz_print(curve->primeNumber);
+		printf("\nGenerator   :(");fmpz_print(curve->generator->x);printf(", ");fmpz_print(curve->generator->y);printf(")");	
+		printf("\nGenerator order: ");fmpz_print(curve->pointOrder);
+		printf("\nMersenne: %d ", curve->mersenneExponent);fmpz_print(curve->primitiveRoot);
+		printf("\n");
+	}
+}
+
+EllipticSecp *EllipticSecp_GenerateAllPoints(EllipticSecpCurve curve)
+{
+	int pointCountLog = fmpz_sizeinbase(curve->pointOrder, 2);
+	assert(pointCountLog < 20);
+	int totalPoints = fmpz_get_ui(curve->pointOrder);
+	EllipticSecp *points = malloc(totalPoints * sizeof(EllipticSecp));
+	
+	//Add Generator
+	points[0] = EllipticSecp_CreatePoint();
+	EllipticSecp_CopyPoint(curve->generator, points[0]);
+	bool secpTest = EllipticSecp_IsValidSecpPoint(points[0]->x, points[0]->y, curve->primeNumber);
+	assert(secpTest);
+	
+	//Add first point
+	points[1] = EllipticSecp_CreatePoint();
+	EllipticSecp_LSBCachedMultiplication(curve->bitCount, curve->cachedDoubles, points[1], curve->generator, curve->primitiveRoot, curve->primeNumber);
+	secpTest = EllipticSecp_IsValidSecpPoint(points[1]->x, points[1]->y, curve->primeNumber);
+	assert(secpTest);
+	
+	//Find next points
+	for(int i = 2; i < totalPoints; i++)
+	{
+		points[i] = EllipticSecp_CreatePoint();
+		EllipticSecp_CopyPoint(points[i-1], points[i]);
+		EllipticSecp_FindNextMersennePoint(curve->mersenneExponent, points[i], curve->temp0, curve->temp1, curve->primeNumber);
+		secpTest = EllipticSecp_IsValidSecpPoint(points[i]->x, points[i]->y, curve->primeNumber);
+		assert(secpTest);
+	}
+	return points;
+}
+
 
 void EllipticSecp_BenchMarkLSB()
 {
