@@ -49,7 +49,7 @@ Thumbs.db
 *.so
 *.dylib
 *.dll
-
+Murage/
 *.o
 *.so
 # Lock files
