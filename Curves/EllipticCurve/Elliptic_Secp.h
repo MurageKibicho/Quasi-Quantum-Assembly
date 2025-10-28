@@ -72,6 +72,10 @@ void EllipticSecp_PrintPoint(EllipticSecp point)
 {
 	fmpz_print(point->x);printf(" ");fmpz_print(point->y);printf("\n");
 }
+void EllipticSecp_PrintPointTab(EllipticSecp point)
+{
+	printf("(");fmpz_print(point->x);printf(",");fmpz_print(point->y);printf(") ");
+}
 
 void EllipticSecp_DestroyPoint(EllipticSecp point)
 {

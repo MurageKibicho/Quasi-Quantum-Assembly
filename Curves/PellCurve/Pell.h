@@ -7,7 +7,7 @@
 #include <flint/flint.h>
 #include <flint/fmpz.h>
 #include <flint/fmpz_factor.h>
-
+#define PellCurve_MATRIX_INDEX(x, y, cols) ((x) * (cols) + (y))
 typedef struct pell_curve_struct *PellCurve;
 typedef struct pell_point_struct *PellPoint;
 struct pell_curve_struct
@@ -49,7 +49,7 @@ PellPoint PellCurve_CreateEmptyPoint()
 
 void PellCurve_ResetPoint(PellPoint point)
 {
-	fmpz_set_ui(point->x, 0);
+	fmpz_set_ui(point->x, 1);
 	fmpz_set_ui(point->y, 0);
 }
 
@@ -64,6 +64,12 @@ void PellCurve_PrintPoint(PellPoint pellPoint)
 	printf("x: ");fmpz_print(pellPoint->x);printf(" ");
 	printf("y: ");fmpz_print(pellPoint->y);printf("\n");
 }
+void PellCurve_PrintPointTab(PellPoint pellPoint)
+{
+	printf("(");fmpz_print(pellPoint->x);printf(",");
+	fmpz_print(pellPoint->y);printf(") ");
+}
+
 
 int PellCurve_TestPointEquality(PellPoint a, PellPoint b)
 {
@@ -421,6 +427,52 @@ void PellCurve_DestroyAllPoints(PellCurve pellCurve, PellPoint *allPoints)
 			}
 			free(allPoints);
 		}	
+	}
+}
+
+void PellCurve_Matmul(PellPoint *output, PellPoint *input, PellPoint *weight, PellPoint tempPell0,PellPoint tempPell1, int inputRowCount, int inputColCount, int outputColCount, fmpz_t D, fmpz_t prime)
+{
+	for(int i = 0; i < inputRowCount; i++)
+	{
+		for(int j = 0; j < outputColCount; j++)
+		{
+			//Set to 1,0
+			PellCurve_ResetPoint(output[PellCurve_MATRIX_INDEX(i,j,outputColCount)]);
+			for(int k = 0; k < inputColCount; k++)
+			{
+				PellCurve_Multiply(tempPell0, input[PellCurve_MATRIX_INDEX(i, k, inputColCount)], weight[PellCurve_MATRIX_INDEX(k, j, outputColCount)], D, prime);
+	                	PellCurve_Multiply(tempPell1, output[PellCurve_MATRIX_INDEX(i, j, outputColCount)], tempPell0, D, prime);
+				PellCurve_CopyPoint(tempPell1, output[PellCurve_MATRIX_INDEX(i, j, outputColCount)]);
+			}	
+		}
+	}
+
+
+}
+
+void PellCurve_SetMatrix(PellPoint *source, PellPoint *destination, int sourceRowCount, int sourceColCount, int destinationRowCount, int destinationColCount)
+{
+	assert(sourceRowCount == destinationRowCount);
+	assert(sourceColCount == destinationColCount);
+	for(int i = 0; i < sourceRowCount; i++)
+	{
+		for(int j = 0; j < sourceColCount; j++)
+		{
+			PellCurve_CopyPoint(source[PellCurve_MATRIX_INDEX(i,j,sourceColCount)], destination[PellCurve_MATRIX_INDEX(i,j,sourceColCount)]);
+		}	
+	}
+}
+
+void PellCurve_MatrixPrettyPrint(PellPoint *matrix, int rows, int cols)
+{
+	for(int i = 0; i < rows; i++)
+	{
+		printf("]\n");
+		for(int j = 0; j < cols; j++)
+		{
+			PellCurve_PrintPointTab(matrix[PellCurve_MATRIX_INDEX(i,j,cols)]);
+		}
+		printf("]\n");
 	}
 }
 
