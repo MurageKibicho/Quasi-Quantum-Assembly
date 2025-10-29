@@ -32,18 +32,29 @@ struct pell_curve_struct
 	int legendreSymbolN;
 };
 
-
+#ifdef PELL_HAS_EXPONENT
+struct pell_point_struct
+{
+	fmpz_t x;
+	fmpz_t y;
+	fmpz_t exponent;
+};
+#else
 struct pell_point_struct
 {
 	fmpz_t x;
 	fmpz_t y;
 };
+#endif
 
 PellPoint PellCurve_CreateEmptyPoint()
 {
 	PellPoint pellPoint = malloc(sizeof(struct pell_point_struct));
 	fmpz_init(pellPoint->x);
 	fmpz_init(pellPoint->y);
+	#ifdef PELL_HAS_EXPONENT
+		fmpz_init(pellPoint->exponent);
+	#endif
 	return pellPoint;
 }
 
@@ -51,23 +62,37 @@ void PellCurve_ResetPoint(PellPoint point)
 {
 	fmpz_set_ui(point->x, 1);
 	fmpz_set_ui(point->y, 0);
+	#ifdef PELL_HAS_EXPONENT
+		fmpz_set_ui(point->exponent, 0);
+	#endif
 }
 
 void PellCurve_CopyPoint(PellPoint source, PellPoint destination)
 {
 	fmpz_set(destination->x, source->x);
 	fmpz_set(destination->y, source->y);
+	#ifdef PELL_HAS_EXPONENT
+		fmpz_set(destination->exponent, source->exponent);
+	#endif
 }
 
 void PellCurve_PrintPoint(PellPoint pellPoint)
 {
 	printf("x: ");fmpz_print(pellPoint->x);printf(" ");
-	printf("y: ");fmpz_print(pellPoint->y);printf("\n");
+	printf("y: ");fmpz_print(pellPoint->y);printf(" ");
+	#ifdef PELL_HAS_EXPONENT
+		printf("e: ");fmpz_print(pellPoint->exponent);printf("\n");
+	#else
+		printf("\n");
+	#endif
 }
 void PellCurve_PrintPointTab(PellPoint pellPoint)
 {
 	printf("(");fmpz_print(pellPoint->x);printf(",");
 	fmpz_print(pellPoint->y);printf(") ");
+	#ifdef PELL_HAS_EXPONENT
+		printf("e: ");fmpz_print(pellPoint->exponent);printf(" ");
+	#endif
 }
 
 
@@ -80,6 +105,9 @@ void PellCurve_ClearPoint(PellPoint pellPoint)
 {
 	fmpz_clear(pellPoint->x);
 	fmpz_clear(pellPoint->y);
+	#ifdef PELL_HAS_EXPONENT
+		fmpz_clear(pellPoint->exponent);
+	#endif
 	free(pellPoint);
 }
 
@@ -100,6 +128,14 @@ void PellCurve_Multiply(PellPoint result, PellPoint a, PellPoint b, fmpz_t D, fm
 	fmpz_add(result->y, result->y, temp1);
 	fmpz_mod(result->y, result->y, primeNumber);
 	
+	#ifdef PELL_HAS_EXPONENT
+		fmpz_t tempMod;
+		fmpz_init(tempMod);
+		fmpz_add_ui(tempMod, primeNumber, 1);
+		fmpz_add(result->exponent, a->exponent, b->exponent);
+		fmpz_mod(result->exponent, result->exponent, tempMod);
+		fmpz_clear(tempMod);
+	#endif
 	fmpz_clear(temp1);
 }
 
@@ -198,7 +234,7 @@ bool PellCurve_FindFundamentalSolution(PellPoint fundamentalSolution, fmpz_t gro
 	PellCurve_ClearPoint(result);
 	PellCurve_ClearPoint(temp0);
 	PellCurve_ClearPoint(temp1);
-	fmpz_clear(temp);
+	fmpz_clear(temp);fmpz_clear(rhs);fmpz_clear(y_sq);
 	return isGenerator;
 }
 
