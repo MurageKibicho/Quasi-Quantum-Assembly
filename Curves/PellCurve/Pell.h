@@ -21,6 +21,9 @@ struct pell_curve_struct
 	fmpz_t temp0;
 	fmpz_t temp1;
 	fmpz_t temp2;
+	fmpz_t *crtDividends;
+	fmpz_t *crtInverses;
+	fmpz_t *combinedCRT;
 	flint_rand_t randomState;
 	fmpz_factor_t factorizationPlusOne;
 	fmpz_factor_t factorizationMinusOne;
@@ -81,7 +84,7 @@ void PellCurve_PrintPoint(PellPoint pellPoint)
 	printf("x: ");fmpz_print(pellPoint->x);printf(" ");
 	printf("y: ");fmpz_print(pellPoint->y);printf(" ");
 	#ifdef PELL_HAS_EXPONENT
-		printf("e: ");fmpz_print(pellPoint->exponent);printf("\n");
+		printf("|e: ");fmpz_print(pellPoint->exponent);printf("\n");
 	#else
 		printf("\n");
 	#endif
@@ -91,7 +94,7 @@ void PellCurve_PrintPointTab(PellPoint pellPoint)
 	printf("(");fmpz_print(pellPoint->x);printf(",");
 	fmpz_print(pellPoint->y);printf(") ");
 	#ifdef PELL_HAS_EXPONENT
-		printf("e: ");fmpz_print(pellPoint->exponent);printf(" ");
+		printf("e: ");fmpz_print(pellPoint->exponent);printf(" | ");
 	#endif
 }
 
@@ -170,6 +173,9 @@ void PellCurve_ScalarPower(PellPoint result, PellPoint base,  PellPoint temp0, P
 	//Set result to infinity
 	fmpz_set_ui(result->x, 1);
 	fmpz_set_ui(result->y, 0);
+	#ifdef PELL_HAS_EXPONENT
+		fmpz_set_ui(result->exponent, 0);
+	#endif
 	PellCurve_CopyPoint(base,currentBase);
 	
 	//Find no. of bits in private key
@@ -185,6 +191,17 @@ void PellCurve_ScalarPower(PellPoint result, PellPoint base,  PellPoint temp0, P
 		PellCurve_CopyPoint(temp0,currentBase);
 		//fmpz_print(base->x);printf(" ");fmpz_print(base->y);printf("\n");
 	}
+	#ifdef PELL_HAS_EXPONENT
+		// result->exponent = base->exponent * privateKey mod (primeNumber + 1)
+		fmpz_t tempMod;
+		fmpz_init(tempMod);
+		fmpz_add_ui(tempMod, primeNumber, 1);
+
+		fmpz_mul(result->exponent, base->exponent, privateKey);
+		fmpz_mod(result->exponent, result->exponent, tempMod);
+
+		fmpz_clear(tempMod);
+	#endif
 }
 
 bool PellCurve_FindFundamentalSolution(PellPoint fundamentalSolution, fmpz_t groupOrder, fmpz_t n, fmpz_t D, fmpz_t primeNumber, fmpz_factor_t factorization, flint_rand_t randomState)
@@ -230,7 +247,9 @@ bool PellCurve_FindFundamentalSolution(PellPoint fundamentalSolution, fmpz_t gro
 		}
 		trials--;
 	}
-
+	#ifdef PELL_HAS_EXPONENT
+		fmpz_set_ui(fundamentalSolution->exponent, 1);
+	#endif
 	PellCurve_ClearPoint(result);
 	PellCurve_ClearPoint(temp0);
 	PellCurve_ClearPoint(temp1);
@@ -268,6 +287,25 @@ PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 	pellCurve->tempPoint0 = PellCurve_CreateEmptyPoint();
 	pellCurve->tempPoint1 = PellCurve_CreateEmptyPoint();
 	pellCurve->foundGenerator = false;
+	
+	pellCurve->combinedCRT = malloc(pellCurve->factorizationPlusOne->num * sizeof(fmpz_t));
+	pellCurve->crtDividends = malloc(pellCurve->factorizationPlusOne->num * sizeof(fmpz_t));
+	pellCurve->crtInverses = malloc(pellCurve->factorizationPlusOne->num * sizeof(fmpz_t));
+	fmpz_t primePower;
+	fmpz_init(primePower);
+
+
+	for(slong i = 0; i < pellCurve->factorizationPlusOne->num; i++)
+	{
+		fmpz_init(pellCurve->combinedCRT[i]);
+		fmpz_init(pellCurve->crtDividends[i]);
+		fmpz_init(pellCurve->crtInverses[i]);
+		fmpz_pow_ui(primePower, &pellCurve->factorizationPlusOne->p[i],fmpz_get_ui(&pellCurve->factorizationPlusOne->exp[i]));
+		fmpz_divexact(pellCurve->crtDividends[i], pellCurve->primePlusOne, primePower);
+		fmpz_invmod(pellCurve->crtInverses[i], pellCurve->crtDividends[i], primePower);
+		fmpz_mul(pellCurve->combinedCRT[i], pellCurve->crtInverses[i], pellCurve->crtDividends[i]);
+	}
+	
 	if(pellCurve->legendreSymbolD == 0)
 	{
 		fmpz_set_ui(pellCurve->groupOrder, 0);
@@ -292,6 +330,7 @@ PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 		fmpz_set(pellCurve->groupOrder, pellCurve->primePlusOne);
 		pellCurve->foundGenerator = PellCurve_FindFundamentalSolution(pellCurve->fundamentalSolution, pellCurve->groupOrder , pellCurve->n, pellCurve->D, pellCurve->prime, pellCurve->factorizationPlusOne, pellCurve->randomState);
 	}
+	fmpz_clear(primePower);
 	return pellCurve;
 }
 
@@ -299,6 +338,13 @@ void PellCurve_Clear(PellCurve pellCurve)
 {
 	if(pellCurve)
 	{
+		for(slong i = 0; i < pellCurve->factorizationPlusOne->num; i++)
+		{
+			fmpz_clear(pellCurve->combinedCRT[i]);
+			fmpz_clear(pellCurve->crtDividends[i]);
+			fmpz_clear(pellCurve->crtInverses[i]);
+		}
+		free(pellCurve->combinedCRT);free(pellCurve->crtDividends);free(pellCurve->crtInverses);
 		fmpz_clear(pellCurve->D);
 		fmpz_clear(pellCurve->n);
 		fmpz_clear(pellCurve->groupOrder);
