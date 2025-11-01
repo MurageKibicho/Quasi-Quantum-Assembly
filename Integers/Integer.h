@@ -17,6 +17,7 @@ struct blankinship_solver_struct
 	int rows;
 	int cols;
 	int solutionRow;
+	fmpz_t scalingFactor;
 	fmpz_t quotient;
 	fmpz_t temp0;
 	fmpz_t smallest;
@@ -25,12 +26,22 @@ struct blankinship_solver_struct
 	fmpz_mat_t matrix;
 };
 
+void Integer_PrettyPrintFMPZArray(int length, fmpz_t *array)
+{
+	for(int i = 0; i < length; i++)
+	{
+		fmpz_print(array[i]);printf(", ");
+	}
+	printf("\n");
+}
+
 LinearIntSolver Integer_CreateLinearIntSolver(int variables)
 {
 	assert(variables > 0);
 	LinearIntSolver intSolver = malloc(sizeof(struct blankinship_solver_struct));
 	intSolver->rows = variables;
 	intSolver->cols = variables + 1;
+	fmpz_init(intSolver->scalingFactor);fmpz_set_ui(intSolver->scalingFactor, 1);
 	fmpz_init(intSolver->quotient);
 	fmpz_init(intSolver->temp0);
 	fmpz_init(intSolver->smallest);
@@ -45,6 +56,7 @@ void Integer_DestroyLinearIntSolver(LinearIntSolver intSolver)
 	if(intSolver)
 	{
 		fmpz_mat_clear(intSolver->matrix);
+		fmpz_clear(intSolver->scalingFactor);
 		fmpz_clear(intSolver->quotient);
 		fmpz_clear(intSolver->temp0);
 		fmpz_clear(intSolver->smallest);
@@ -54,12 +66,30 @@ void Integer_DestroyLinearIntSolver(LinearIntSolver intSolver)
 	}
 }
 
+bool Integer_FindScalingFactorLinearIntSolver(LinearIntSolver intSolver, fmpz_t target)
+{
+	bool set = false;
+	if(fmpz_cmp_ui(intSolver->gcd, 0) != 0)
+	{
+		//Check if there is a remainder
+		fmpz_mod(intSolver->temp0, target, intSolver->gcd);
+		if(fmpz_cmp_ui(intSolver->temp0, 0) == 0)
+		{
+			fmpz_divexact(intSolver->scalingFactor, target, intSolver->gcd);
+			set = true;	
+		}
+		
+	}
+	return set; 
+}
+
 bool Integer_SolveLinearIntSolver(LinearIntSolver intSolver, int length, fmpz_t *search)
 {
 	bool solved = false;
 	assert(intSolver->rows == length);
 	assert(intSolver->rows + 1 == intSolver->cols);
 	/*Initialize Blankinship Solver*/
+	fmpz_set_ui(intSolver->scalingFactor, 1);
 	for(int i = 0; i < intSolver->rows; i++)
 	{
 		fmpz_set(fmpz_mat_entry(intSolver->matrix, i, 0), search[i]);
@@ -144,12 +174,14 @@ bool Integer_SolveLinearIntSolver(LinearIntSolver intSolver, int length, fmpz_t 
 
 void Integer_PrettyPrintLinearIntSolver(LinearIntSolver intSolver)
 {
-	printf("GCD = ");fmpz_print(intSolver->gcd);printf("\n");
+	printf("GCD = ");fmpz_print(intSolver->gcd);printf(" ");
+	printf("Scaling Factor = ");fmpz_print(intSolver->scalingFactor);printf("\n");
 	printf("Particular solution (x₁, x₂, ..., xₙ): ");
 	
 	for(int j = 1; j < intSolver->cols; j++)
 	{
-		fmpz_print(fmpz_mat_entry(intSolver->matrix, intSolver->solutionRow, j));
+		fmpz_mul(intSolver->temp0, fmpz_mat_entry(intSolver->matrix, intSolver->solutionRow, j), intSolver->scalingFactor);
+		fmpz_print(intSolver->temp0);
 		if(j < intSolver->cols - 1){printf(", ");}
 	}
 	printf("\n");
@@ -158,7 +190,8 @@ void Integer_PrettyPrintLinearIntSolver(LinearIntSolver intSolver)
 	printf("(x₁, x₂, ..., xₙ) = (");
 	for(int j = 1; j < intSolver->cols; j++)
 	{
-		fmpz_print(fmpz_mat_entry(intSolver->matrix, intSolver->solutionRow, j));
+		fmpz_mul(intSolver->temp0, fmpz_mat_entry(intSolver->matrix, intSolver->solutionRow, j), intSolver->scalingFactor);
+		fmpz_print(intSolver->temp0);
 		if (j < intSolver->cols - 1) printf(", ");
 	}
 	printf(")");
@@ -169,7 +202,7 @@ void Integer_PrettyPrintLinearIntSolver(LinearIntSolver intSolver)
 	}
 	printf(", where t₁, t₂, ... ∈ ℤ\n");
 	
-	printf("\n(nullspace) basis vectors satisfying a·v = 0:\n");
+	printf("\nNullspace basis vectors satisfying a·v = 0:\n");
 	int nullCount = 0;
 	for(int i = 0; i < intSolver->rows; i++)
 	{
