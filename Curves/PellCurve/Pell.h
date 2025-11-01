@@ -30,6 +30,7 @@ struct pell_curve_struct
 	PellPoint fundamentalSolution;
 	PellPoint tempPoint0;
 	PellPoint tempPoint1;
+	PellPoint tempPoint2;
 	bool foundGenerator;
 	int legendreSymbolD;
 	int legendreSymbolN;
@@ -204,6 +205,17 @@ void PellCurve_ScalarPower(PellPoint result, PellPoint base,  PellPoint temp0, P
 	#endif
 }
 
+bool PellCurve_TestPointOrder(PellCurve pellCurve, PellPoint point, fmpz_t testOrder)
+{
+	bool result = false;
+	PellCurve_ScalarPower(pellCurve->tempPoint2, point, pellCurve->tempPoint0, pellCurve->tempPoint1, pellCurve->D, testOrder, pellCurve->prime);
+	if(fmpz_cmp_ui(pellCurve->tempPoint2->x, 1) == 0 && fmpz_cmp_ui(pellCurve->tempPoint2->y, 0) == 0)
+	{
+		result = true;
+	}
+	return result;
+}
+
 bool PellCurve_FindFundamentalSolution(PellPoint fundamentalSolution, fmpz_t groupOrder, fmpz_t n, fmpz_t D, fmpz_t primeNumber, fmpz_factor_t factorization, flint_rand_t randomState)
 {
 	int trials = 1000;
@@ -286,6 +298,7 @@ PellCurve PellCurve_CreateCurveAuto(fmpz_t prime, fmpz_t D, fmpz_t n)
 	pellCurve->fundamentalSolution = PellCurve_CreateEmptyPoint();
 	pellCurve->tempPoint0 = PellCurve_CreateEmptyPoint();
 	pellCurve->tempPoint1 = PellCurve_CreateEmptyPoint();
+	pellCurve->tempPoint2 = PellCurve_CreateEmptyPoint();
 	pellCurve->foundGenerator = false;
 	
 	pellCurve->combinedCRT = malloc(pellCurve->factorizationPlusOne->num * sizeof(fmpz_t));
@@ -360,6 +373,7 @@ void PellCurve_Clear(PellCurve pellCurve)
 		PellCurve_ClearPoint(pellCurve->fundamentalSolution );
 		PellCurve_ClearPoint(pellCurve->tempPoint0 );
 		PellCurve_ClearPoint(pellCurve->tempPoint1 );
+		PellCurve_ClearPoint(pellCurve->tempPoint2 );
 		free(pellCurve);
 	}
 }
