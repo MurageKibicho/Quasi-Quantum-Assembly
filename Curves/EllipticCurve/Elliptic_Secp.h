@@ -11,12 +11,24 @@
 
 typedef struct elliptic_secp_curve_struct *EllipticSecpCurve;
 typedef struct elliptic_secp_point_struct *EllipticSecp;
+#ifdef SECP_HAS_EXPONENT
+struct elliptic_secp_point_struct
+{
+	fmpz_t x;
+	fmpz_t y;
+	fmpz_t exponent;
+	fmpz_t privateKey;
+	int infinity;
+};
+#else
 struct elliptic_secp_point_struct
 {
 	fmpz_t x;
 	fmpz_t y;
 	int infinity;
 };
+#endif
+
 int mersenneExponents [] = {2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127, 521, 607, 1279, 2203, 2281, 3217, 4253, 4423, 9689, 9941, 11213, 19937, 21701, 23209, 44497, 86243, 110503, 132049, 216091, 756839, 859433, 1257787, 1398269, 2976221, 3021377, 6972593, 13466917, 20996011, 24036583, 25964951, 30402457, 32582657, 37156667, 42643801, 43112609, 57885161, 74207281, 77232917, 82589933};
 int mersenneLength = sizeof(mersenneExponents) / sizeof(int);
 
@@ -44,6 +56,10 @@ EllipticSecp EllipticSecp_CreatePoint()
 	fmpz_init(point->x);
 	fmpz_init(point->y);
 	point->infinity = 0;
+	#ifdef SECP_HAS_EXPONENT
+		fmpz_init(point->exponent);
+		fmpz_init(point->privateKey);
+	#endif
 	return point;
 }
 
@@ -52,6 +68,10 @@ void EllipticSecp_CopyPoint(EllipticSecp source, EllipticSecp destination)
 	fmpz_set(destination->x, source->x);
 	fmpz_set(destination->y, source->y);
 	destination->infinity = source->infinity;
+	#ifdef SECP_HAS_EXPONENT
+		fmpz_set(destination->exponent, source->exponent);
+		fmpz_set(destination->privateKey, source->privateKey);
+	#endif
 }
 
 void EllipticSecp_FindPointInverse(EllipticSecp source, EllipticSecp destination, fmpz_t primeNumber)
@@ -70,7 +90,11 @@ int EllipticSecp_TestPointEquality(EllipticSecp a, EllipticSecp b)
 
 void EllipticSecp_PrintPoint(EllipticSecp point)
 {
-	fmpz_print(point->x);printf(" ");fmpz_print(point->y);printf("\n");
+	fmpz_print(point->x);printf(" ");fmpz_print(point->y);
+	#ifdef SECP_HAS_EXPONENT
+		printf(" e: ");fmpz_print(point->exponent);printf(" key: ");fmpz_print(point->privateKey);
+	#endif
+	printf("\n");
 }
 void EllipticSecp_PrintPointTab(EllipticSecp point)
 {
@@ -83,6 +107,10 @@ void EllipticSecp_DestroyPoint(EllipticSecp point)
 	{
 		fmpz_clear(point->x);
 		fmpz_clear(point->y);
+		#ifdef SECP_HAS_EXPONENT
+			fmpz_clear(point->exponent);
+			fmpz_clear(point->privateKey);
+		#endif
 		free(point);
 	}
 }
@@ -615,13 +643,19 @@ EllipticSecp *EllipticSecp_GenerateAllPoints(EllipticSecpCurve curve)
 	EllipticSecp_CopyPoint(curve->generator, points[0]);
 	bool secpTest = EllipticSecp_IsValidSecpPoint(points[0]->x, points[0]->y, curve->primeNumber);
 	assert(secpTest);
-	
+	#ifdef SECP_HAS_EXPONENT
+		fmpz_set_ui(points[0]->exponent, 1);
+		fmpz_powm(points[0]->privateKey,curve->primitiveRoot, points[0]->exponent, curve->pointOrder);
+	#endif
 	//Add first point
 	points[1] = EllipticSecp_CreatePoint();
 	EllipticSecp_LSBCachedMultiplication(curve->bitCount, curve->cachedDoubles, points[1], curve->generator, curve->primitiveRoot, curve->primeNumber);
 	secpTest = EllipticSecp_IsValidSecpPoint(points[1]->x, points[1]->y, curve->primeNumber);
 	assert(secpTest);
-	
+	#ifdef SECP_HAS_EXPONENT
+		fmpz_set_ui(points[1]->exponent, 2);
+		fmpz_powm(points[1]->privateKey,curve->primitiveRoot, points[1]->exponent, curve->pointOrder);
+	#endif
 	//Find next points
 	for(int i = 2; i < totalPoints; i++)
 	{
@@ -630,6 +664,10 @@ EllipticSecp *EllipticSecp_GenerateAllPoints(EllipticSecpCurve curve)
 		EllipticSecp_FindNextMersennePoint(curve->mersenneExponent, points[i], curve->temp0, curve->temp1, curve->primeNumber);
 		secpTest = EllipticSecp_IsValidSecpPoint(points[i]->x, points[i]->y, curve->primeNumber);
 		assert(secpTest);
+		#ifdef SECP_HAS_EXPONENT
+			fmpz_set_ui(points[i]->exponent, i+1);
+			fmpz_powm(points[i]->privateKey,curve->primitiveRoot, points[i]->exponent, curve->pointOrder);
+		#endif
 	}
 	return points;
 }
