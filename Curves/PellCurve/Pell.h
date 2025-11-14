@@ -168,6 +168,28 @@ bool PellCurve_IsValidPellPoint(fmpz_t x, fmpz_t y, fmpz_t D, fmpz_t n, fmpz_t p
 	return isOnCurve;
 }
 
+bool PellCurve_IsValidPellPoint_Z(fmpz_t x, fmpz_t y, fmpz_t D, fmpz_t n)
+{
+	fmpz_t xSquare, DySquare, tmp;
+	fmpz_init(xSquare);
+	fmpz_init(DySquare);
+	fmpz_init(tmp);
+	//x² mod p
+	fmpz_mul(xSquare, x, x);
+	//D * y² mod p
+	fmpz_mul(DySquare, y, y);
+	fmpz_mul(DySquare, DySquare, D);
+	
+	//Check if (x² - Dy²) ≡ n mod p
+	fmpz_sub(tmp, xSquare, DySquare);
+	
+	bool isOnCurve = (fmpz_cmp(tmp, n) == 0);
+	fmpz_clear(xSquare);
+	fmpz_clear(DySquare);
+	fmpz_clear(tmp);
+	return isOnCurve;
+}
+
 
 void PellCurve_ScalarPower(PellPoint result, PellPoint base,  PellPoint temp0, PellPoint currentBase, fmpz_t D, fmpz_t privateKey, fmpz_t primeNumber)
 {
